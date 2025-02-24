@@ -5,6 +5,53 @@ import { useParams } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import CombinedVideoStream from './CombinedVideoStream';
+import { username } from '@/utils/googleAuth';
+import { Video, VideoOff, Mic, MicOff, Monitor, Plus } from "lucide-react";
+import { useWebRTCAudio } from '@/hooks/webRTCAudio';
+import Controls from './Controls';
+
+const StreamSettings = ({ setBackgroundColor }) => {
+    const [showBackgroundOptions, setShowBackgroundOptions] = useState(false);
+    const backgroundColors = ["#FF5733", "#33FF57", "#3357FF", "#F0F0F0", "#000000"];
+
+    return (
+        <div className="relative">
+            <div className="mb-6 pb-4 flex justify-between items-center">
+                <div>
+                    <h3 className="text-xs font-medium">Background</h3>
+                    <p className="text-gray-400 text-xs mt-2">
+                        Customize your stream background <br />to match your style.
+                    </p>
+                </div>
+                <button
+                    className="text-xs hover:bg-slate-300 self-center bg-slate-200 px-5 py-1 rounded-md"
+                    onClick={() => setShowBackgroundOptions((prev) => !prev)}
+                >
+                    Edit
+                </button>
+            </div>
+
+            {showBackgroundOptions && (
+                <div className="absolute top-0 right-0 bg-white shadow-lg p-3 rounded-lg w-48 z-10">
+                    <h4 className="text-xs font-semibold mb-2">Select Background</h4>
+                    <div className="grid grid-cols-5 gap-2">
+                        {backgroundColors.map((color) => (
+                            <div
+                                key={color}
+                                className="w-8 h-8 rounded cursor-pointer"
+                                style={{ backgroundColor: color }}
+                                onClick={() => {
+                                    setBackgroundColor(color);
+                                    setShowBackgroundOptions(false);
+                                }}
+                            />
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
 
 export default function RoomPage() {
     const { roomId } = useParams();
@@ -18,22 +65,54 @@ export default function RoomPage() {
     const streamRef = useRef();
     const [isVideo, setIsVideo] = useState(false);
     const [isAudio, setIsAudio] = useState(false);
-    const [connectedPeers, setConnectedPeers] = useState(0);
     const [remoteStreams, setRemoteStreams] = useState([]);
     const [localStream, setLocalStream] = useState(null);
-    const audioRef = useRef(null);
+    const [hasInteracted, setHasInteracted] = useState(false);
+    const [pendingAudioElements, setPendingAudioElements] = useState([]);
+    const videoProducerRef = useRef(null);
+    const localStreamRef = useRef(null);
+    const [isScreenSharing, setIsScreenSharing] = useState(false);
+    let room;
+    const [isMuted, setIsMuted] = useState(true)
+    const audioContextRef = useRef();
+    const analyserRef = useRef();
+    const animationFrameRef = useRef();
+    const [userInteracted, setUserInteracted] = useState(false);
+    const [screenStream, setScreenStream] = useState(null)
+    const [isRecording, setIsRecording] = useState(false);
+    const [backgroundColor, setBackgroundColor] = useState("#3357FF");
+    const [isStreaming, setIsStreaming] = useState(false);
 
-    const handleConsumerCreated = async ({ consumerId, producerId, kind, rtpParameters }) => {
-        console.log("Received a consumer: ", consumerId, producerId, kind, rtpParameters);
+    useEffect(() => {
+        const url = window.location.pathname;
+        const parts = url.split("/");
+        room = parts[parts.length - 1];
+    }, []);
+
+    useEffect(() => {
+        const handleFirstInteraction = () => {
+            setUserInteracted(true);
+            pendingAudioElements.forEach(audioEl => {
+                audioEl.play().catch(console.error);
+            });
+            setPendingAudioElements([]);
+            document.removeEventListener('click', handleFirstInteraction);
+        };
+
+        document.addEventListener('click', handleFirstInteraction);
+        return () => document.removeEventListener('click', handleFirstInteraction);
+    }, [pendingAudioElements]);
+
+    const handleConsumerCreated = async ({ consumerId, producerId, kind, rtpParameters, sender }) => {
+        // console.log(`received a cinsumer sender is ${sender}`)
+        // console.log("Received a consumer: ", consumerId, producerId, kind, rtpParameters);
 
         try {
-            // Ensure the kind is video
             if (kind !== 'video' && kind !== 'audio') {
-                console.error('Attempted to consume non-video track');
+                console.error('Attempted to consume invalid track type');
                 return;
             }
 
-            // Consume the video track
             const consumer = await consumerTransportRef.current.consume({
                 id: consumerId,
                 producerId,
@@ -41,51 +120,45 @@ export default function RoomPage() {
                 rtpParameters,
             });
 
-            console.log("This is the consumer: ", consumer);
-
-            // Create a MediaStream to play the video
             const stream = new MediaStream();
             stream.addTrack(consumer.track);
-            console.log("Remote stream: ", stream);
-            console.log("KIND::: ", kind)
+
             if (kind === 'video') {
-                console.log("******")
-                setRemoteStreams((prevStreams) => [...prevStreams, { producerId, stream }]);
-            } else if (kind === 'audio') {
-                // Handle audio stream separately if needed
-                const audioElement = new Audio();
-                audioElement.srcObject = stream;
-                audioElement.play();
+                setRemoteStreams((prevStreams) => [...prevStreams, { producerId, stream, sender }]);
+            }
+            if (kind === 'audio') {
+                const audioEl = new Audio();
+                audioEl.srcObject = stream;
+                audioEl.autoplay = true;
+                audioEl.playsInline = true;
+                if (userInteracted) {
+                    try {
+                        await audioEl.play();
+                        console.log('Audio playback started successfully');
+                    } catch (error) {
+                        console.error('Error playing audio:', error);
+                    }
+                } else {
+                    console.log('Queueing audio element for playback after user interaction');
+                    setPendingAudioElements(prev => [...prev, audioEl]);
+                }
+
+                consumersRef.current.set(producerId, {
+                    consumer,
+                    audioElement: audioEl
+                });
             }
 
-            // Assign the stream to the videoRef element
-            // if (videoRef.current) {
-            //     videoRef.current.srcObject = stream;
-            // } else {
-            //     console.error('videoRef is not set');
-            // }
-
-            // setRemoteStreams((prevStreams) => [...prevStreams, { producerId, stream }]);
-            // Store the consumer
-            consumersRef.current.set(producerId, {
-                consumer,
-                kind
-            });
-
-            setConnectedPeers(consumersRef.current.size);
-
-            // Resume the consumer
+            // setConnectedPeers(consumersRef.current.size);
             await consumer.resume();
             socketRef.current.emit('resumeConsumer', { consumerId });
 
-            console.log('Video consumer setup complete for producer:', producerId);
         } catch (error) {
             console.error('Error in handleConsumerCreated:', error);
         }
     };
 
-
-    const consumeVideo = async (producerId, kind) => {
+    const consumeTrack = async (producerId, kind, sender) => {
         if (!consumerTransportRef.current) {
             console.warn('Receive transport not ready yet.');
             return;
@@ -96,79 +169,110 @@ export default function RoomPage() {
                 producerId,
                 rtpCapabilities: deviceRef.current.rtpCapabilities,
                 transportId: consumerTransportRef.current.id,
-                kind
-            });
-        } catch (error) {
-            console.error('Error consuming video:', error);
-        }
-    };
-
-    const consumeTrack = async (producerId, kind) => {
-        if (!consumerTransportRef.current) {
-            console.warn('Receive transport not ready yet.');
-            return;
-        }
-
-        try {
-            socketRef.current.emit('consume', {
-                producerId,
-                rtpCapabilities: deviceRef.current.rtpCapabilities,
-                transportId: consumerTransportRef.current.id,
-                kind
+                kind,
+                sender
             });
         } catch (error) {
             console.error(`Error consuming ${kind}:`, error);
         }
     };
 
-    // Audio toggle functionality
-    const audioToggle = async () => {
+    const initializeAudioContext = async () => {
+        if (!audioContextRef.current) {
+            try {
+                audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+                analyserRef.current = audioContextRef.current.createAnalyser();
+                analyserRef.current.fftSize = 256;
+            } catch (error) {
+                console.error('Error initializing audio context:', error);
+                throw error;
+            }
+        }
+    };
+    const handleToggleMute = async () => {
+        console.log("Mute toggle called--->")
         try {
-            if (!isAudio) {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                const audioTrack = stream.getAudioTracks()[0];
+            if (isMuted) {
+                console.log("is muted")
+                await initializeAudioContext();
 
-                if (audioTrack) {
-                    const audioProducer = await producerTransportRef.current.produce({
-                        track: audioTrack,
+                streamRef.current = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true,
+                        channelCount: 1,
+                        sampleRate: 48000,
+                        sampleSize: 16
+                    },
+                    video: false
+                });
+
+                if (!producerTransportRef.current) {
+                    await new Promise(resolve => {
+                        const checkTransport = setInterval(() => {
+                            if (producerTransportRef.current) {
+                                clearInterval(checkTransport);
+                                resolve();
+                            }
+                        }, 100);
+                        console.log("Check Transport: ", checkTransport)
+                    });
+                    console.log("Go promise")
+                }
+
+                try {
+                    producerRef.current = await producerTransportRef.current.produce({
+                        track: streamRef.current.getAudioTracks()[0],
                         codecOptions: {
                             opusStereo: true,
-                            opusDtx: true
-                        }
+                            opusDtx: true,
+                        },
                     });
-
-                    console.log('Audio producer created:', audioProducer);
+                }
+                catch (err) {
+                    console.err(err)
                 }
             } else {
-                // Stop audio production
-                if (producerTransportRef.current) {
-                    const audioProducers = producerTransportRef.current.producers.filter(
-                        (producer) => producer.kind === 'audio'
-                    );
-                    audioProducers.forEach((producer) => producer.close());
+                console.log("is not muted")
+                if (producerRef.current) {
+                    producerRef.current.close();
                 }
+                if (streamRef.current) {
+                    streamRef.current.getTracks().forEach(track => track.stop());
+                }
+                if (animationFrameRef.current) {
+                    cancelAnimationFrame(animationFrameRef.current);
+                }
+                // setAudioLevel(0);
             }
+            setIsMuted((muted) => {
+                console.log("Toggling isMuted: ", muted); // Log the current and toggled state
+                return !muted;
+            });
+            console.log(isMuted)
 
-            setIsAudio(!isAudio);
         } catch (error) {
-            console.error('Error toggling audio:', error);
+            console.error('Error toggling mute:', error);
+            setIsMuted(true);
+            // setAudioLevel(0);
+            throw error;
         }
     };
 
-
     const videoToggle = async () => {
-        console.log("Video toggle called...");
         try {
             if (!isVideo) {
-                // Start capturing video stream
+                // Starting video
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                console.log("Local stream: ", stream)
-                setLocalStream(stream)
+                localStreamRef.current = stream;
+                setLocalStream({ stream, sender: username });
+                console.log("Local Stream after ON: ", stream);
+
                 if (videoRef.current) {
                     videoRef.current.srcObject = stream;
                 }
 
-                // Ensure the SendTransport is ready
                 if (!producerTransportRef.current) {
                     await new Promise((resolve) => {
                         const checkTransport = setInterval(() => {
@@ -180,33 +284,44 @@ export default function RoomPage() {
                     });
                 }
 
-                // Produce the video track
                 const videoTrack = stream.getVideoTracks()[0];
-                console.log("VIDEO TRACK", videoTrack)
                 if (videoTrack) {
                     const videoProducer = await producerTransportRef.current.produce({
                         track: videoTrack,
                         codecOptions: {
-                            videoGoogleStartBitrate: 1000, // Optional, for better quality
+                            videoGoogleStartBitrate: 1000
                         },
                     });
-
-                    console.log('Video producer created:', videoProducer);
+                    videoProducerRef.current = videoProducer;
+                    // console.log('Video producer created:', videoProducer);
                 }
+
+                // Notify others that video is ON
+                socketRef.current.emit("toggle-video", { sender: username, isVideo: true });
+
             } else {
-                // Stop video production and stream
-                if (producerTransportRef.current) {
-                    const videoProducers = producerTransportRef.current.producers.filter(
-                        (producer) => producer.kind === 'video'
-                    );
-                    videoProducers.forEach((producer) => producer.close());
+                // Stopping video
+                if (videoProducerRef.current) {
+                    videoProducerRef.current.close();
+                    videoProducerRef.current = null;
+
+                    // Stop all video tracks
+                    if (localStreamRef.current) {
+                        localStreamRef.current.getVideoTracks().forEach(track => {
+                            track.stop();
+                            localStreamRef.current.removeTrack(track);
+                        });
+                    }
+
+                    if (videoRef.current) {
+                        videoRef.current.srcObject = null;
+                    }
+
+                    setLocalStream(null);
                 }
 
-                if (videoRef.current && videoRef.current.srcObject) {
-                    const tracks = videoRef.current.srcObject.getTracks();
-                    tracks.forEach((track) => track.stop());
-                    videoRef.current.srcObject = null;
-                }
+                // Notify others that video is OFF
+                socketRef.current.emit("toggle-video", { sender: username, isVideo: false });
             }
 
             setIsVideo(!isVideo);
@@ -214,8 +329,66 @@ export default function RoomPage() {
             console.error('Error toggling video:', error);
         }
     };
-    async function connetToServer() {
-        console.log("Connecting to Audio Server...")
+
+    const handleScreenShare = async () => {
+        try {
+            if (!isScreenSharing) {
+                const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                console.log("Screen sharing started", stream);
+
+                if (videoRef.current) {
+                    videoRef.current.srcObject = stream;
+                }
+
+                if (!producerTransportRef.current) {
+                    await new Promise((resolve) => {
+                        const checkTransport = setInterval(() => {
+                            if (producerTransportRef.current) {
+                                clearInterval(checkTransport);
+                                resolve();
+                            }
+                        }, 100);
+                    });
+                }
+
+                const videoTrack = stream.getVideoTracks()[0];
+                if (videoTrack) {
+                    const videoProducer = await producerTransportRef.current.produce({
+                        track: videoTrack,
+                        codecOptions: {
+                            videoGoogleStartBitrate: 1000
+                        },
+                    });
+                    videoProducerRef.current = videoProducer;
+                    console.log('Video producer created:', videoProducer);
+                }
+                setIsScreenSharing(true);
+                setScreenStream(stream)
+            } else {
+                console.log("Screen sharing stopped");
+                setIsScreenSharing(false);
+            }
+        } catch (error) {
+            console.error("Error sharing screen:", error);
+        }
+    };
+
+    const handleFileUpload = (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            console.log("File selected:", file);
+            // You can process the file (e.g., upload to a server)
+        }
+    };
+    const handleRemoteToggle = (sender, isVideo) => {
+        setRemoteStreams((prevStreams) =>
+            prevStreams.map((stream) =>
+                stream.sender === sender ? { ...stream, isVideo } : stream
+            )
+        );
+    };
+
+    async function connectToServer() {
         socketRef.current = io('http://localhost:4000', {
             transports: ['websocket'],
             reconnection: true,
@@ -223,18 +396,21 @@ export default function RoomPage() {
             reconnectionDelay: 1000,
             reconnectionDelayMax: 5000,
             timeout: 20000,
-            query: { roomId } // Add roomId to connection query
+            query: { roomId }
         });
 
         socketRef.current.on('connect', () => {
-            console.log(`Connected to the socket server, My socket Id : ${socketRef.current.id}`);
+            console.log(`Connected to the socket server, Socket Id: ${socketRef.current.id}`);
+            const data = { email: username };
+            socketRef.current.emit("joinRoom", { room: roomId, data });
             deviceRef.current = new Device();
-            setupWebRTC()
+            setupWebRTC();
         });
+
         setupSocketListeners();
     }
+
     const setupWebRTC = () => {
-        console.log("Asking for rtpcapabilities...")
         socketRef.current.emit('getRouterRtpCapabilities');
     };
 
@@ -242,14 +418,13 @@ export default function RoomPage() {
         socketRef.current.on('routerRtpCapabilities', async (routerRtpCapabilities) => {
             try {
                 await deviceRef.current.load({ routerRtpCapabilities });
-                console.log("Received routerRtpCapabilities: ", routerRtpCapabilities)
                 socketRef.current.emit('createWebRtcTransport', { sender: true });
             } catch (error) {
                 console.error('Error loading device:', error);
             }
         });
+
         socketRef.current.on('transportCreated', async ({ params, sender }) => {
-            console.log("received transport ", params, sender)
             try {
                 if (sender) {
                     await setupSendTransport(params);
@@ -260,32 +435,41 @@ export default function RoomPage() {
                 console.error('Error setting up transport:', error);
             }
         });
+
         socketRef.current.on('transportConnected', () => {
             console.log('Transport connected successfully');
         });
-        socketRef.current.on('newProducer', async ({ producerId, kind }) => {
-            console.log("Received new producer: ", producerId, kind)
+
+        socketRef.current.on('newProducer', async ({ producerId, kind, sender }) => {
             if (consumerTransportRef.current) {
-                if (kind === 'video')
-                    await consumeVideo(producerId, 'video');
-                else if (kind === 'audio')
-                    await consumeTrack(producerId, 'audio');
+                await consumeTrack(producerId, kind, sender);
             }
         });
-        socketRef.current.on('consumerCreated', handleConsumerCreated);
-        socketRef.current.on('producerClosed', handleProducerClosed);
 
-        socketRef.current.on('peers', (peers) => {
-            setConnectedPeers(peers.length);
-        });
-    }
+        socketRef.current.on('consumerCreated', handleConsumerCreated);
+        // socketRef.current.on('producerClosed', handleProducerClosed);
+        // socketRef.current.on('peers', (peers) => {
+        //     setConnectedPeers(peers.length);
+        // });
+        socketRef.current.on("toggle-video", async ({ sender, isVideo }) => {
+            console.log("Received video toggle: ", sender, isVideo)
+            handleRemoteToggle(sender, isVideo)
+        })
+    };
+
     const handleProducerClosed = (producerId) => {
+        console.log("HandleProducer Closed called...")
         const consumerData = consumersRef.current.get(producerId);
         if (consumerData) {
             const { consumer, audioElement } = consumerData;
             consumer.close();
-            audioElement.remove();
+            if (audioElement) {
+                audioElement.remove();
+            }
             consumersRef.current.delete(producerId);
+
+            // Remove from remote streams if it was a video stream
+            setRemoteStreams(prev => prev.filter(stream => stream.producerId !== producerId));
         }
     };
 
@@ -294,7 +478,6 @@ export default function RoomPage() {
 
         producerTransportRef.current.on('connect', async ({ dtlsParameters }, callback, errback) => {
             try {
-                console.log("asking to connect transport...")
                 await socketRef.current.emit('connectTransport', {
                     transportId: params.id,
                     dtlsParameters
@@ -310,7 +493,9 @@ export default function RoomPage() {
                 socketRef.current.emit('produce', {
                     transportId: producerTransportRef.current.id,
                     kind,
-                    rtpParameters
+                    rtpParameters,
+                    room,
+                    sender: username
                 }, ({ producerId }) => {
                     callback({ id: producerId });
                 });
@@ -322,7 +507,6 @@ export default function RoomPage() {
         socketRef.current.emit('createWebRtcTransport', { sender: false });
     };
 
-    // Setup receive transport
     const setupReceiveTransport = async (params) => {
         consumerTransportRef.current = deviceRef.current.createRecvTransport(params);
 
@@ -340,144 +524,103 @@ export default function RoomPage() {
     };
 
     useEffect(() => {
-        const startVideo = async () => {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-                if (videoRef.current) {
-                    videoRef.current.srcObject = stream;
-                }
-            } catch (err) {
-                console.error("Error accessing webcam: ", err);
-            }
-        };
-
-        startVideo();
-
+        connectToServer();
         return () => {
-            if (videoRef.current && videoRef.current.srcObject) {
-                const tracks = videoRef.current.srcObject.getTracks();
-                tracks.forEach((track) => track.stop());
+            // Cleanup function
+            if (socketRef.current) {
+                socketRef.current.disconnect();
             }
+
+            // Clean up all media streams
+            if (localStreamRef.current) {
+                localStreamRef.current.getTracks().forEach(track => track.stop());
+            }
+
+            // Clean up producers
+            if (videoProducerRef.current) {
+                videoProducerRef.current.close();
+            }
+
+            // Clean up audio elements
+            consumersRef.current.forEach(({ audioElement }) => {
+                if (audioElement) {
+                    audioElement.remove();
+                }
+            });
         };
     }, []);
 
-
-    useEffect(() => {
-        connetToServer()
-    }, [])
-
-    useEffect(() => {
-        console.log("REMOTE STREAMS: ", remoteStreams)
-    }, [remoteStreams])
-
-    useEffect(() => {
-        console.log("LOCAL STREAMS: ", localStream)
-    }, [localStream])
-
+    // useEffect(() => {
+    //     document.body.style.overflow = "hidden";
+    //     return () => {
+    //         document.body.style.overflow = "auto";
+    //     };
+    // }, []);
     return (
-        <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
-            {/* Header */}
-            <h1 className="text-3xl font-bold text-center">Welcome to Room: {roomId}</h1>
-            <p className="text-lg mt-4 text-center">
-                You are currently in the video call room with ID: <strong>{roomId}</strong>
-            </p>
-            {/* My Video */}
-            {/* <div style={{ margin: '20px 0', textAlign: 'center' }}>
-                <h2 className="text-2xl font-semibold">My Video</h2>
-                <video
-                    ref={videoRef}
-                    autoPlay
-                    playsInline
-                    style={{
-                        width: '50%',
-                        height: 'auto',
-                        border: '3px solid green',
-                        borderRadius: '10px',
-                        boxShadow: '0 4px 8px rgba(0, 0, 0, 0.2)',
-                        margin: '20px auto',
-                    }}
-                />
-            </div> */}
+        <>
+            <div className="flex justify-center items-center h-screen w-screen ">
+                <div className='flex w-full h-full p-4'>
+                    <div className='w-8/12 '>
+                        <div className="w-full aspect-[16/9] bg-blue-500 flex items-center justify-center relative rounded-xl ">
+                            <CombinedVideoStream localStream={localStream} remoteStreams={remoteStreams}
+                                socketRef={socketRef} screenStream={screenStream} backgroundColor={backgroundColor}
+                                isRecording={isRecording} isStreaming={isStreaming} audioContextRef={audioContextRef} />
+                        </div>
+                        <Controls isVideo={isVideo} videoToggle={videoToggle}
+                            isMuted={isMuted} handleToggleMute={handleToggleMute}
+                            handleScreenShare={handleScreenShare} handleFileUpload={handleFileUpload} />
+                    </div>
+                    <div className='w-4/12 '>
+                        <div className=" p-1 flex flex-col gap-5">
+                            <div className="p-4 w-full">
+                                <h2 className="text-sm font-semibold mb-4">Stream Settings</h2>
+                                <StreamSettings setBackgroundColor={setBackgroundColor} />
+                                {/* Background Settings */}
+                                {/* <div className="mb-6 pb-4 flex justify-between items-center">
+                                    <div>
+                                        <h3 className="text-xs font-medium">Background</h3>
+                                        <p className="text-gray-400 text-xs mt-2">
+                                            Customize your stream background <br />to match your style.
+                                        </p>
+                                    </div>
+                                    <button className=" text-xs hover:bg-slate-300 self-center bg-slate-200 px-5 py-1 rounded-md">Edit</button>
+                                </div> */}
 
-            {/* Remote Streams */}
-            {/* <div style={{ marginTop: '30px' }}>
-                <h2 className="text-2xl font-semibold text-center">Participants</h2>
-                <div
-                    style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
-                        gap: '15px',
-                        marginTop: '20px',
-                        padding: '10px',
-                        backgroundColor: '#f9f9f9',
-                        borderRadius: '10px',
-                        boxShadow: '0 4px 8px rgba(0, 0, 0, 0.1)',
-                    }}
-                >
-                    {remoteStreams.map(({ producerId, stream }) => (
-                        <video
-                            key={producerId}
-                            autoPlay
-                            playsInline
-                            style={{
-                                width: '100%',
-                                height: 'auto',
-                                border: '2px solid blue',
-                                borderRadius: '8px',
-                                objectFit: 'cover',
-                                boxShadow: '0 4px 8px rgba(0, 0, 0, 0.2)',
-                            }}
-                            ref={(el) => {
-                                if (el && !el.srcObject) {
-                                    el.srcObject = stream;
-                                }
-                            }}
-                        />
-                    ))}
+                                {/* Stream Layout Settings */}
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <h3 className="text-xs font-medium">Stream Layout</h3>
+                                        <p className="text-gray-400 text-xs mt-2">
+                                            Adjust the layout of your <br />
+                                            stream to best suit your <br />content.
+                                        </p>
+                                    </div>
+                                    <button className="text-xs hover:bg-slate-300 self-center bg-slate-200 px-5 py-1 rounded-md">Edit</button>
+                                </div>
+                            </div>
+                            <div className="p-4 w-full">
+                                <h2 className="text-sm font-semibold mb-4">Stream Actions</h2>
+                                {/* Background Settings */}
+                                <div className="mb-6 pb-4 gap-x-2 flex justify-between items-center">
+                                    {isStreaming ? <button className='bg-green-400 hover:bg-green-500 px-2 py-2 w-1/2 text-xs rounded-lg font-semibold ' onClick={() => {
+                                        setIsStreaming(false)
+                                    }}>Stop Streaming</button> :
+                                        <button className='bg-slate-200 hover:bg-slate-300 px-2 py-2 w-1/2 text-xs rounded-lg font-semibold ' onClick={() => {
+                                            setIsStreaming(true)
+                                        }}>Start Streaming</button>}
+                                    {isRecording ? <button className='bg-red-400 hover:bg-red-500 text-white px-2 py-2 w-1/2 text-xs rounded-lg font-semibold' onClick={() => {
+                                        setIsRecording(false);
+                                    }}>Stop Recording</button> :
+                                        <button className='bg-blue-400 hover:bg-blue-500 text-white px-2 py-2 w-1/2 text-xs rounded-lg font-semibold' onClick={() => {
+                                            setIsRecording(true)
+                                        }}>Start Recording</button>}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-            </div> */}
-
-            {/* Combined Video Stream */}
-            <div style={{ marginTop: '30px' }}>
-                <h2 className="text-2xl font-semibold text-center">Combined Video Stream</h2>
-                <CombinedVideoStream
-                    localStream={localStream}
-                    remoteStreams={remoteStreams}
-                />
             </div>
-
-            {/* Toggle Button and Peers */}
-            <div style={{ marginTop: '30px', textAlign: 'center' }}>
-                <button
-                    onClick={videoToggle}
-                    style={{
-                        padding: '10px 20px',
-                        backgroundColor: '#007BFF',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '5px',
-                        cursor: 'pointer',
-                        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-                    }}
-                >
-                    Toggle Video
-                </button>
-                <button
-                    onClick={audioToggle}
-                    style={{
-                        padding: '10px 20px',
-                        backgroundColor: '#28a745',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '5px',
-                        cursor: 'pointer',
-                        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
-                    }}
-                >
-                    Toggle Audio
-                </button>
-            </div>
-        </div>
-    );
+        </>
+    )
 
 }
