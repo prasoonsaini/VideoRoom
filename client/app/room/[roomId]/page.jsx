@@ -9,7 +9,7 @@ import { username } from '@/utils/googleAuth';
 import { Video, VideoOff, Mic, MicOff, Monitor, Plus } from "lucide-react";
 import { useWebRTCAudio } from '@/hooks/webRTCAudio';
 import Controls from './Controls';
-
+import { motion } from "framer-motion";
 const StreamSettings = ({ setBackgroundColor }) => {
     const [showBackgroundOptions, setShowBackgroundOptions] = useState(false);
     const backgroundColors = ["#FF5733", "#33FF57", "#3357FF", "#F0F0F0", "#000000"];
@@ -124,7 +124,14 @@ export default function RoomPage() {
             stream.addTrack(consumer.track);
 
             if (kind === 'video') {
-                setRemoteStreams((prevStreams) => [...prevStreams, { producerId, stream, sender }]);
+                setRemoteStreams((prevStreams) => {
+                    // Remove older stream from the same sender
+                    const filtered = prevStreams.filter((stream) => stream.sender !== sender);
+
+                    // Add the new stream
+                    return [...filtered, { producerId, stream, sender, new: true }];
+                });
+                // setRemoteStreams((prevStreams) => [...prevStreams, { producerId, stream, sender, new: true }]);
             }
             if (kind === 'audio') {
                 const audioEl = new Audio();
@@ -266,8 +273,7 @@ export default function RoomPage() {
                 // Starting video
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true });
                 localStreamRef.current = stream;
-                setLocalStream({ stream, sender: username });
-                console.log("Local Stream after ON: ", stream);
+                setLocalStream({ stream, sender: username, isVideo: true });
 
                 if (videoRef.current) {
                     videoRef.current.srcObject = stream;
@@ -293,7 +299,6 @@ export default function RoomPage() {
                         },
                     });
                     videoProducerRef.current = videoProducer;
-                    // console.log('Video producer created:', videoProducer);
                 }
 
                 // Notify others that video is ON
@@ -304,21 +309,20 @@ export default function RoomPage() {
                 if (videoProducerRef.current) {
                     videoProducerRef.current.close();
                     videoProducerRef.current = null;
-
-                    // Stop all video tracks
-                    if (localStreamRef.current) {
-                        localStreamRef.current.getVideoTracks().forEach(track => {
-                            track.stop();
-                            localStreamRef.current.removeTrack(track);
-                        });
-                    }
-
-                    if (videoRef.current) {
-                        videoRef.current.srcObject = null;
-                    }
-
-                    setLocalStream(null);
                 }
+
+                if (localStreamRef.current) {
+                    localStreamRef.current.getVideoTracks().forEach(track => {
+                        track.stop();
+                    });
+                    localStreamRef.current = null;
+                }
+
+                if (videoRef.current) {
+                    videoRef.current.srcObject = null;
+                }
+
+                setLocalStream({ sender: username, isVideo: false });  // Ensure this updates properly
 
                 // Notify others that video is OFF
                 socketRef.current.emit("toggle-video", { sender: username, isVideo: false });
@@ -329,6 +333,7 @@ export default function RoomPage() {
             console.error('Error toggling video:', error);
         }
     };
+
 
     const handleScreenShare = async () => {
         try {
@@ -380,13 +385,23 @@ export default function RoomPage() {
             // You can process the file (e.g., upload to a server)
         }
     };
+    useEffect(() => {
+        console.log("Remote streams:::::", remoteStreams)
+    }, [remoteStreams])
     const handleRemoteToggle = (sender, isVideo) => {
         setRemoteStreams((prevStreams) =>
-            prevStreams.map((stream) =>
-                stream.sender === sender ? { ...stream, isVideo } : stream
+            prevStreams.map((stream) => {
+                return stream.sender === sender ? { ...stream, isVideo } : stream
+            }
             )
         );
+
+        // Handle local user case
+        if (sender === username) {
+            setLocalStream((prev) => ({ ...prev, isVideo }));
+        }
     };
+
 
     async function connectToServer() {
         socketRef.current = io('http://localhost:4000', {
@@ -557,70 +572,120 @@ export default function RoomPage() {
     //     };
     // }, []);
     return (
-        <>
-            <div className="flex justify-center items-center h-screen w-screen ">
-                <div className='flex w-full h-full p-4'>
-                    <div className='w-8/12 '>
-                        <div className="w-full aspect-[16/9] bg-blue-500 flex items-center justify-center relative rounded-xl ">
-                            <CombinedVideoStream localStream={localStream} remoteStreams={remoteStreams}
-                                socketRef={socketRef} screenStream={screenStream} backgroundColor={backgroundColor}
-                                isRecording={isRecording} isStreaming={isStreaming} audioContextRef={audioContextRef} />
-                        </div>
-                        <Controls isVideo={isVideo} videoToggle={videoToggle}
-                            isMuted={isMuted} handleToggleMute={handleToggleMute}
-                            handleScreenShare={handleScreenShare} handleFileUpload={handleFileUpload} />
-                    </div>
-                    <div className='w-4/12 '>
-                        <div className=" p-1 flex flex-col gap-5">
-                            <div className="p-4 w-full">
-                                <h2 className="text-sm font-semibold mb-4">Stream Settings</h2>
-                                <StreamSettings setBackgroundColor={setBackgroundColor} />
-                                {/* Background Settings */}
-                                {/* <div className="mb-6 pb-4 flex justify-between items-center">
-                                    <div>
-                                        <h3 className="text-xs font-medium">Background</h3>
-                                        <p className="text-gray-400 text-xs mt-2">
-                                            Customize your stream background <br />to match your style.
-                                        </p>
-                                    </div>
-                                    <button className=" text-xs hover:bg-slate-300 self-center bg-slate-200 px-5 py-1 rounded-md">Edit</button>
-                                </div> */}
+        <div className="flex justify-center items-center h-screen w-screen bg-[#121212]">
+            <motion.div
+                className="flex w-full h-full p-6 gap-6"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, ease: "easeOut" }}
+            >
+                {/* Main Video Section */}
+                <div className="w-8/12 flex flex-col gap-0">
+                    {/* Video Stream */}
+                    <motion.div
+                        className="w-full aspect-[16/9] bg-[#1E1E1E] flex items-center justify-center relative rounded-xl shadow-lg"
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ duration: 0.5, ease: "easeOut" }}
+                    >
+                        <CombinedVideoStream
+                            localStream={localStream}
+                            remoteStreams={remoteStreams}
+                            socketRef={socketRef}
+                            screenStream={screenStream}
+                            backgroundColor={backgroundColor}
+                            isRecording={isRecording}
+                            isStreaming={isStreaming}
+                            audioContextRef={audioContextRef}
+                        />
+                    </motion.div>
 
-                                {/* Stream Layout Settings */}
-                                <div className="flex justify-between items-center">
-                                    <div>
-                                        <h3 className="text-xs font-medium">Stream Layout</h3>
-                                        <p className="text-gray-400 text-xs mt-2">
-                                            Adjust the layout of your <br />
-                                            stream to best suit your <br />content.
-                                        </p>
-                                    </div>
-                                    <button className="text-xs hover:bg-slate-300 self-center bg-slate-200 px-5 py-1 rounded-md">Edit</button>
-                                </div>
-                            </div>
-                            <div className="p-4 w-full">
-                                <h2 className="text-sm font-semibold mb-4">Stream Actions</h2>
-                                {/* Background Settings */}
-                                <div className="mb-6 pb-4 gap-x-2 flex justify-between items-center">
-                                    {isStreaming ? <button className='bg-green-400 hover:bg-green-500 px-2 py-2 w-1/2 text-xs rounded-lg font-semibold ' onClick={() => {
-                                        setIsStreaming(false)
-                                    }}>Stop Streaming</button> :
-                                        <button className='bg-slate-200 hover:bg-slate-300 px-2 py-2 w-1/2 text-xs rounded-lg font-semibold ' onClick={() => {
-                                            setIsStreaming(true)
-                                        }}>Start Streaming</button>}
-                                    {isRecording ? <button className='bg-red-400 hover:bg-red-500 text-white px-2 py-2 w-1/2 text-xs rounded-lg font-semibold' onClick={() => {
-                                        setIsRecording(false);
-                                    }}>Stop Recording</button> :
-                                        <button className='bg-blue-400 hover:bg-blue-500 text-white px-2 py-2 w-1/2 text-xs rounded-lg font-semibold' onClick={() => {
-                                            setIsRecording(true)
-                                        }}>Start Recording</button>}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    {/* Controls Section */}
+                    <motion.div
+                        className="p-2 rounded-lg bg-[#242424] shadow-md flex justify-center"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.5, ease: "easeOut", delay: 0.3 }}
+                    >
+                        <Controls
+                            isVideo={isVideo}
+                            videoToggle={videoToggle}
+                            isMuted={isMuted}
+                            handleToggleMute={handleToggleMute}
+                            handleScreenShare={handleScreenShare}
+                            handleFileUpload={handleFileUpload}
+                        />
+                    </motion.div>
                 </div>
-            </div>
-        </>
-    )
 
+                {/* Sidebar - Stream Settings & Actions */}
+                <motion.div
+                    className="w-4/12 flex flex-col gap-6"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.6, ease: "easeOut", delay: 0.3 }}
+                >
+                    {/* Stream Settings */}
+                    <motion.div
+                        className="bg-[#242424] text-white p-5 rounded-lg shadow-md"
+                        whileHover={{ scale: 1.02 }}
+                    >
+                        <h2 className="text-lg font-semibold mb-4">Stream Settings</h2>
+                        <StreamSettings setBackgroundColor={setBackgroundColor} />
+
+                        {/* Layout Settings */}
+                        <div className="mt-4 border-t border-gray-600 pt-4">
+                            <h3 className="text-sm font-medium">Stream Layout</h3>
+                            <p className="text-gray-400 text-xs mt-1">
+                                Adjust the layout of your stream to best suit your content.
+                            </p>
+                            <motion.button
+                                className="mt-3 bg-[#333] hover:bg-[#444] text-sm px-4 py-2 rounded-md transition-all"
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                            >
+                                Edit Layout
+                            </motion.button>
+                        </div>
+                    </motion.div>
+
+                    {/* Stream Actions */}
+                    <motion.div
+                        className="bg-[#242424] text-white p-5 rounded-lg shadow-md"
+                        whileHover={{ scale: 1.02 }}
+                    >
+                        <h2 className="text-lg font-semibold mb-4">Stream Actions</h2>
+
+                        <div className="flex gap-3">
+                            {/* Start/Stop Streaming */}
+                            <motion.button
+                                className={`flex-1 px-4 py-2 text-sm font-semibold rounded-lg transition-all ${isStreaming
+                                    ? 'bg-green-500 hover:bg-green-600 text-white'
+                                    : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                                    }`}
+                                onClick={() => setIsStreaming(!isStreaming)}
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                            >
+                                {isStreaming ? 'Stop Streaming' : 'Start Streaming'}
+                            </motion.button>
+
+                            {/* Start/Stop Recording */}
+                            <motion.button
+                                className={`flex-1 px-4 py-2 text-sm font-semibold rounded-lg transition-all ${isRecording
+                                    ? 'bg-red-500 hover:bg-red-600 text-white'
+                                    : 'bg-blue-500 hover:bg-blue-600 text-white'
+                                    }`}
+                                onClick={() => setIsRecording(!isRecording)}
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                            >
+                                {isRecording ? 'Stop Recording' : 'Start Recording'}
+                            </motion.button>
+                        </div>
+                    </motion.div>
+                </motion.div>
+            </motion.div>
+        </div>
+    );
 }

@@ -32,9 +32,11 @@ const VideoGrid = ({ localStream, remoteStreams = [], screenStream, backgroundCo
     useEffect(() => {
         console.log("Remote streams: ", remoteStreams)
         const safeRemoteStreams = Array.isArray(remoteStreams) ? remoteStreams : [];
-        const allStreams = [localStream, screenStream, ...safeRemoteStreams.map(stream =>
-            ({ stream: stream?.stream, sender: stream?.sender })
-        )].filter(Boolean);
+        const allStreams = [localStream, screenStream, ...safeRemoteStreams.map(stream => ({
+            stream: stream?.stream,
+            sender: stream?.sender,
+            isVideo: stream?.isVideo ?? true,
+        }))].filter(Boolean);
         // allStreams.push(screenStream)
 
         setStreams(allStreams);
@@ -228,43 +230,47 @@ const VideoGrid = ({ localStream, remoteStreams = [], screenStream, backgroundCo
         if (!canvas || videoRefs.length === 0) return;
 
         const ctx = canvas.getContext('2d');
-        console.log("Video Refs: ", videoRefs)
-        console.log("Video data: ", videoData)
+
         const draw = () => {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Apply rounded corners
             ctx.save();
             ctx.beginPath();
             ctx.roundRect(0, 0, canvas.width, canvas.height, 20);
             ctx.clip();
 
-            // Fill background
             ctx.fillStyle = backgroundColor;
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Draw each video
             videoRefs.forEach((ref, index) => {
                 const video = ref.current;
-                if (video && video.readyState >= 2 && videoData[index]) {
-                    const { x, y, width, height } = videoData[index];
+                const streamData = streams[index]; // Get stream info
+                const { x, y, width, height } = videoData[index] || {};
 
+                if (video && video.readyState >= 2 && streamData.isVideo) {
+                    // 🚀 **Draw video if the user has video ON**
                     try {
                         ctx.drawImage(video, x, y, width, height);
                     } catch (error) {
                         console.error('Error drawing video:', error);
                     }
+                } else {
+                    // 🚀 **Draw image only if the user has video OFF**
+                    ctx.fillStyle = "#333";
+                    ctx.fillRect(x, y, width, height);
 
-                    if (selectedVideo === index) {
-                        ctx.strokeStyle = "#0099ff";
-                        ctx.lineWidth = 3;
-                        ctx.strokeRect(x, y, width, height);
-                        ctx.fillStyle = "#0099ff";
-                        ctx.fillRect(x + width - 10, y + height - 10, 10, 10);
-                    }
+                    ctx.fillStyle = "#fff";
+                    ctx.font = "20px Arial";
+                    ctx.textAlign = "center";
+                    ctx.fillText(streamData.sender, x + width / 2, y + height / 2);
                 }
-                else if (!videoData[index]) {
-                    console.log("Index: ", index)
+
+                if (selectedVideo === index) {
+                    ctx.strokeStyle = "#0099ff";
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(x, y, width, height);
+                    ctx.fillStyle = "#0099ff";
+                    ctx.fillRect(x + width - 10, y + height - 10, 10, 10);
                 }
             });
 
@@ -279,7 +285,10 @@ const VideoGrid = ({ localStream, remoteStreams = [], screenStream, backgroundCo
                 cancelAnimationFrame(animationFrameId);
             }
         };
-    }, [videoRefs, videoData, selectedVideo, backgroundColor]);
+    }, [videoRefs, videoData, selectedVideo, backgroundColor, streams]); // Added `streams` dependency
+
+
+
 
     const handleMouseDown = (e) => {
         const rect = canvasRef.current.getBoundingClientRect();

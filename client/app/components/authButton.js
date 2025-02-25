@@ -23,20 +23,21 @@ const AuthButtons = () => {
             try {
                 const userData = await getAuthStatus();
                 console.log("user data: ------", userData)
+                console.log("user profile picture: ------", userData?.photos[0]?.value)
                 if (userData) {
                     setUser(userData);
 
                     // First try to get picture from localStorage
                     let picture = localStorage.getItem('userPicture');
-
                     // Set a default avatar if no picture is available
-                    // setProfilePicture(picture || '/default-avatar.png');
+                    setProfilePicture(picture || '/default-avatar.png');
 
                     // Save other user data
                     const { displayName, emails } = userData;
                     const email = emails?.[0]?.value || '';
                     localStorage.setItem('userName', displayName);
                     localStorage.setItem('userEmail', email);
+                    localStorage.setItem('userPicture', userData?.photos[0]?.value)
                 } else {
                     clearLocalStorage();
                 }
@@ -141,12 +142,12 @@ const AuthButtons = () => {
                         src={profilePicture}
                         alt={`${user.displayName}'s avatar`}
                         className="w-8 h-8 rounded-full cursor-pointer object-cover"
-                        onError={(e) => {
-                            console.log("error loading image: ", e)
-                            e.target.onerror = null; // Prevent infinite loop
-                            e.target.src = './man.png'; // Fallback image
-                            // setProfilePicture('./man.png'); // Update state
-                        }}
+                        // onError={(e) => {
+                        //     console.log("error loading image: ", e)
+                        //     e.target.onerror = null; // Prevent infinite loop
+                        //     e.target.src = './man.png'; // Fallback image
+                        //     setProfilePicture('./man.png'); // Update state
+                        // }}
                         onClick={toggleProfilePopup}
                     />
                 </div>
