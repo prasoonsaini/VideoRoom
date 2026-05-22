@@ -1,0 +1,16 @@
+{
+  "name": "videoroom",
+  "version": "1.0.0",
+  "description": "Multi-user video calling platform",
+  "scripts": {
+    "start": "concurrently --names \"SIGNAL,RECORD,STREAM,AUTH,CLIENT\" --prefix-colors \"blue,red,yellow,magenta,green\" \"npm run signaling\" \"npm run recording\" \"npm run streaming\" \"npm run auth\" \"npm run client\"",
+    "signaling": "cd server/signaling-server && node server.js",
+    "recording": "cd server/recording-server && node server.js",
+    "streaming": "cd server/streaming-server && node server.js",
+    "auth": "cd server/auth-server && node server.js",
+    "client": "cd client && npm run dev"
+  },
+  "dependencies": {
+    "concurrently": "^8.0.0"
+  }
+}

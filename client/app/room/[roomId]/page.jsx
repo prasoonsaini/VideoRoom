@@ -172,6 +172,7 @@ export default function RoomPage() {
         }
 
         try {
+            console.log("sendin consume message....")
             socketRef.current.emit('consume', {
                 producerId,
                 rtpCapabilities: deviceRef.current.rtpCapabilities,
@@ -440,6 +441,7 @@ export default function RoomPage() {
         });
 
         socketRef.current.on('transportCreated', async ({ params, sender }) => {
+            console.log("Transport created....", sender)
             try {
                 if (sender) {
                     await setupSendTransport(params);
@@ -456,9 +458,13 @@ export default function RoomPage() {
         });
 
         socketRef.current.on('newProducer', async ({ producerId, kind, sender }) => {
+            console.log("Received a producer: ", sender, producerId)
             if (consumerTransportRef.current) {
                 await consumeTrack(producerId, kind, sender);
+                console.log("consumer transport ref", consumerTransportRef)
             }
+            else
+                console.log("no consumer transport ref", consumerTransportRef)
         });
 
         socketRef.current.on('consumerCreated', handleConsumerCreated);
