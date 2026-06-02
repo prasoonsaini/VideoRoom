@@ -62,6 +62,7 @@ export default function RoomPage() {
     const consumerTransportRef = useRef();
     const producerRef = useRef();
     const consumersRef = useRef(new Map());
+    const pendingProducersRef = useRef([]); ////
     const streamRef = useRef();
     const [isVideo, setIsVideo] = useState(false);
     const [isAudio, setIsAudio] = useState(false);
@@ -463,8 +464,10 @@ export default function RoomPage() {
                 await consumeTrack(producerId, kind, sender);
                 console.log("consumer transport ref", consumerTransportRef)
             }
-            else
+            else {
                 console.log("no consumer transport ref", consumerTransportRef)
+                pendingProducersRef.current.push({ producerId, kind, sender });
+            }
         });
 
         socketRef.current.on('consumerCreated', handleConsumerCreated);
@@ -542,6 +545,11 @@ export default function RoomPage() {
                 errback(error);
             }
         });
+        console.log("Receive transport ready, flushing queue:", pendingProducersRef.current.length, "producers")
+        for (const p of pendingProducersRef.current) {
+            await consumeTrack(p.producerId, p.kind, p.sender);
+        }
+        pendingProducersRef.current = [];
     };
 
     useEffect(() => {
