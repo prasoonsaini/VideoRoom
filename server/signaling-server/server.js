@@ -259,5 +259,46 @@ io.on("connection", async (socket) => {
     // Handle disconnection
     socket.on("disconnect", () => {
         console.log("User disconnected:", socket.id);
+
+        // Find which room this user was in
+        const userEmail = [...usersToSocket.entries()]
+            .find(([email, sock]) => sock.id === socket.id)?.[0];
+
+        const userRoom = [...rooms.entries()]
+            .find(([roomId, members]) => members.has(socket.id))?.[0];
+
+        if (userRoom && userEmail) {
+            // Tell everyone in the room this user left
+            socket.to(userRoom).emit('userLeft', {
+                sender: userEmail
+            });
+
+            // Clean up room data
+            rooms.get(userRoom).delete(socket.id);
+            usersInRoom.get(userRoom)?.delete(userEmail);
+            usersToSocket.delete(userEmail);
+
+            // Remove their producers from roomToProducers
+            const producers = roomToProducers.get(userRoom);
+            if (producers) {
+                for (const p of producers) {
+                    if (p.sender === userEmail) {
+                        producers.delete(p);
+                    }
+                }
+            }
+        }
+
+        // existing cleanup
+        const peer = peers.get(socket.id);
+        if (peer) {
+            peer.producers.forEach(producer => producer.close());
+            peer.consumers.forEach(consumer => consumer.close());
+            if (peer.producerTransport) peer.producerTransport.close();
+            if (peer.consumerTransport) peer.consumerTransport.close();
+        }
+        peers.delete(socket.id);
+        io.emit('peers', Array.from(peers.keys()));
+        mediasoupServer.removeUser(socket.id);
     });
 });

@@ -479,6 +479,14 @@ export default function RoomPage() {
             console.log("Received video toggle: ", sender, isVideo)
             handleRemoteToggle(sender, isVideo)
         })
+
+        // Add this inside setupSocketListeners()
+        socketRef.current.on('userLeft', ({ sender }) => {
+            console.log("User left:", sender);
+            setRemoteStreams(prev =>
+                prev.filter(stream => stream.sender !== sender)
+            );
+        });
     };
 
     const handleProducerClosed = (producerId) => {

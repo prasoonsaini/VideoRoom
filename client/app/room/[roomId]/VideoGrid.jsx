@@ -245,7 +245,11 @@ const VideoGrid = ({ localStream, remoteStreams = [], screenStream, backgroundCo
             videoRefs.forEach((ref, index) => {
                 const video = ref.current;
                 const streamData = streams[index]; // Get stream info
-                const { x, y, width, height } = videoData[index] || {};
+                const videoDataItem = videoData[index];
+
+                if (!streamData || !videoDataItem) return;
+
+                const { x, y, width, height } = videoDataItem;
 
                 if (video && video.readyState >= 2 && streamData.isVideo) {
                     // 🚀 **Draw video if the user has video ON**
