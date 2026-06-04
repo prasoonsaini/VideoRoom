@@ -73,7 +73,7 @@ export default function RoomPage() {
     const videoProducerRef = useRef(null);
     const localStreamRef = useRef(null);
     const [isScreenSharing, setIsScreenSharing] = useState(false);
-    let room;
+    // let room;
     const [isMuted, setIsMuted] = useState(true)
     const audioContextRef = useRef();
     const analyserRef = useRef();
@@ -84,11 +84,11 @@ export default function RoomPage() {
     const [backgroundColor, setBackgroundColor] = useState("#3357FF");
     const [isStreaming, setIsStreaming] = useState(false);
 
-    useEffect(() => {
-        const url = window.location.pathname;
-        const parts = url.split("/");
-        room = parts[parts.length - 1];
-    }, []);
+    // useEffect(() => {
+    //     const url = window.location.pathname;
+    //     const parts = url.split("/");
+    //     room = parts[parts.length - 1];
+    // }, []);
 
     useEffect(() => {
         const handleFirstInteraction = () => {
@@ -526,7 +526,7 @@ export default function RoomPage() {
                     transportId: producerTransportRef.current.id,
                     kind,
                     rtpParameters,
-                    room,
+                    room: roomId,
                     sender: username
                 }, ({ producerId }) => {
                     callback({ id: producerId });
