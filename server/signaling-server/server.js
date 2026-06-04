@@ -125,6 +125,24 @@ io.on("connection", async (socket) => {
         }
     });
 
+    socket.on('producerClosed', ({ producerId, room, sender }) => {
+        console.log("Producer closed:", producerId, sender);
+
+        const producers = roomToProducers.get(room);
+        if (producers) {
+            for (const p of producers) {
+                if (p.producerId === producerId) {
+                    producers.delete(p);
+                    break;
+                }
+            }
+        }
+        console.log("roomToProducers after cleanup:", roomToProducers);
+
+        // Tell other users this producer is gone
+        socket.to(room).emit('producerClosed', { producerId, sender });
+    });
+
     socket.on('consume', async ({ producerId, rtpCapabilities, transportId, kind, sender }) => {
         console.log("asked to consume...", sender)
         try {

@@ -309,6 +309,11 @@ export default function RoomPage() {
             } else {
                 // Stopping video
                 if (videoProducerRef.current) {
+                    socketRef.current.emit('producerClosed', {
+                        producerId: videoProducerRef.current.id,
+                        room: roomId,
+                        sender: username
+                    });
                     videoProducerRef.current.close();
                     videoProducerRef.current = null;
                 }
@@ -468,6 +473,13 @@ export default function RoomPage() {
                 console.log("no consumer transport ref", consumerTransportRef)
                 pendingProducersRef.current.push({ producerId, kind, sender });
             }
+        });
+
+        socketRef.current.on('producerClosed', ({ producerId, sender }) => {
+            console.log("Remote producer closed:", sender, producerId);
+            setRemoteStreams(prev =>
+                prev.filter(stream => stream.producerId !== producerId)
+            );
         });
 
         socketRef.current.on('consumerCreated', handleConsumerCreated);
