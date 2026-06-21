@@ -3,7 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import VideoGrid from './VideoGrid';
 
-const CombinedVideoStream = ({ localStream, remoteStreams, socketRef, screenStream, backgroundColor, isRecording, isStreaming, audioContextRef }) => {
+const CombinedVideoStream = ({ localStream, remoteStreams, socketRef, screenStream, backgroundColor, isRecording, isStreaming, audioContextRef, userProfiles }) => {
     const canvasRef = useRef(null);
     const combinedVideoRef = useRef(null);
     // const socketRef = useRef(null);
@@ -114,7 +114,7 @@ const CombinedVideoStream = ({ localStream, remoteStreams, socketRef, screenStre
             <VideoGrid localStream={localStream} remoteStreams={remoteStreams}
                 screenStream={screenStream} backgroundColor={backgroundColor}
                 isRecording={isRecording} isStreaming={isStreaming}
-                audioContextRef={audioContextRef} />
+                audioContextRef={audioContextRef} userProfiles={userProfiles} />
         </div>
     );
 

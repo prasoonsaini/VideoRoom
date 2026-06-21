@@ -19,6 +19,7 @@ const MAX_USERS_PER_ROOM = 20;
 const usersInRoom = new Map();
 const usersToSocket = new Map();
 const roomToProducers = new Map();
+const userProfiles = new Map(); // email -> { picture, displayName }
 io.on("connection", async (socket) => {
     console.log("User connected:", socket.id);
 
@@ -219,7 +220,10 @@ io.on("connection", async (socket) => {
 
     socket.on("joinRoom", ({ room, data }) => {
         // console.log("Received Room and data: ", room, data)
-        let { email } = data;
+        let { email, picture, displayName } = data;
+
+        userProfiles.set(email, { picture, displayName });
+
         if (!usersInRoom.has(room)) {
             usersInRoom.set(room, new Set())
         }
@@ -242,10 +246,22 @@ io.on("connection", async (socket) => {
         rooms.set(room, currentRoom);
         socket.join(room);
 
-        // usersInRoom.get(room).forEach((user) => {
-        //     const sock = usersToSocket.get(user);
-        //     console.log(room, sock.id)
-        // })
+        // ✅ Send NEW user the profiles of everyone already in the room
+        usersInRoom.get(room).forEach((existingEmail) => {
+            if (existingEmail !== email && userProfiles.has(existingEmail)) {
+                const existingProfile = userProfiles.get(existingEmail);
+                socket.emit("userProfile", {
+                    email: existingEmail,
+                    picture: existingProfile.picture,
+                    displayName: existingProfile.displayName
+                });
+            }
+        });
+
+        // ✅ Tell existing users about the NEW user
+        socket.to(room).emit("userProfile", { email, picture, displayName });
+
+        socket.to(room).emit("userProfile", { email, picture, displayName });
 
         const producersInroom = roomToProducers.get(room)
         console.log(`producers in room ${room}: for user: ${email}`, producersInroom)

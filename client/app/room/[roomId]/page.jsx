@@ -83,7 +83,7 @@ export default function RoomPage() {
     const [isRecording, setIsRecording] = useState(false);
     const [backgroundColor, setBackgroundColor] = useState("#3357FF");
     const [isStreaming, setIsStreaming] = useState(false);
-
+    const [userProfiles, setUserProfiles] = useState({});
     // useEffect(() => {
     //     const url = window.location.pathname;
     //     const parts = url.split("/");
@@ -103,6 +103,18 @@ export default function RoomPage() {
         document.addEventListener('click', handleFirstInteraction);
         return () => document.removeEventListener('click', handleFirstInteraction);
     }, [pendingAudioElements]);
+
+    useEffect(() => {
+        if (username) {
+            setUserProfiles(prev => ({
+                ...prev,
+                [username]: {
+                    picture: localStorage.getItem('userPicture'),
+                    displayName: localStorage.getItem('userName')
+                }
+            }));
+        }
+    }, [username]);
 
     const handleConsumerCreated = async ({ consumerId, producerId, kind, rtpParameters, sender }) => {
         // console.log(`received a cinsumer sender is ${sender}`)
@@ -423,8 +435,13 @@ export default function RoomPage() {
 
         socketRef.current.on('connect', () => {
             console.log(`Connected to the socket server, Socket Id: ${socketRef.current.id}`);
-            const data = { email: username };
+            const data = {
+                email: username,
+                picture: localStorage.getItem('userPicture'),
+                displayName: localStorage.getItem('userName')
+            };
             socketRef.current.emit("joinRoom", { room: roomId, data });
+            setLocalStream({ sender: username, isVideo: false, stream: null });
             deviceRef.current = new Device();
             setupWebRTC();
         });
@@ -478,7 +495,11 @@ export default function RoomPage() {
         socketRef.current.on('producerClosed', ({ producerId, sender }) => {
             console.log("Remote producer closed:", sender, producerId);
             setRemoteStreams(prev =>
-                prev.filter(stream => stream.producerId !== producerId)
+                prev.map(stream =>
+                    stream.producerId === producerId
+                        ? { ...stream, isVideo: false }
+                        : stream
+                )
             );
         });
 
@@ -491,6 +512,20 @@ export default function RoomPage() {
             console.log("Received video toggle: ", sender, isVideo)
             handleRemoteToggle(sender, isVideo)
         })
+
+        socketRef.current.on('userProfile', ({ email, picture, displayName }) => {
+            setUserProfiles(prev => ({
+                ...prev,
+                [email]: { picture, displayName }
+            }));
+
+            // ✅ Ensure a placeholder tile exists even with no stream yet
+            setRemoteStreams(prev => {
+                const exists = prev.some(s => s.sender === email);
+                if (exists) return prev;
+                return [...prev, { sender: email, stream: null, isVideo: false, producerId: null }];
+            });
+        });
 
         // Add this inside setupSocketListeners()
         socketRef.current.on('userLeft', ({ sender }) => {
@@ -631,6 +666,7 @@ export default function RoomPage() {
                             isRecording={isRecording}
                             isStreaming={isStreaming}
                             audioContextRef={audioContextRef}
+                            userProfiles={userProfiles}
                         />
                     </motion.div>
 

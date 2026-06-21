@@ -1,7 +1,7 @@
 import { username } from '@/utils/googleAuth';
 import React, { useEffect, useRef, useState } from 'react';
 
-const VideoGrid = ({ localStream, remoteStreams = [], screenStream, backgroundColor, isRecording, isStreaming, audioContextRef }) => {
+const VideoGrid = ({ localStream, remoteStreams = [], screenStream, backgroundColor, isRecording, isStreaming, audioContextRef, userProfiles = {} }) => {
     const canvasRef = useRef(null);
     const [videoRefs, setVideoRefs] = useState([]);
     const [videoData, setVideoData] = useState([]);
@@ -12,6 +12,7 @@ const VideoGrid = ({ localStream, remoteStreams = [], screenStream, backgroundCo
     const mediaRecorderRef = useRef(null);
     const recordedChunksRef = useRef([]);
     const streamSocketRef = useRef(null);
+    const imageCache = useRef({});
     const styles = {
         container: {
             display: 'flex',
@@ -203,11 +204,9 @@ const VideoGrid = ({ localStream, remoteStreams = [], screenStream, backgroundCo
             video.playsInline = true;
             video.muted = index === 0; // Mute local stream
 
-            if (streams[index]) {
+            if (streams[index] && streams[index].stream) {
                 video.srcObject = streams[index].stream;
-                video.play().catch(error =>
-                    console.error('Error playing video:', error)
-                );
+                video.play().catch(error => console.error('Error playing video:', error));
             }
         });
 
@@ -251,22 +250,21 @@ const VideoGrid = ({ localStream, remoteStreams = [], screenStream, backgroundCo
 
                 const { x, y, width, height } = videoDataItem;
 
+                if (!streamData || !videoDataItem) return;
+
                 if (video && video.readyState >= 2 && streamData.isVideo) {
-                    // 🚀 **Draw video if the user has video ON**
                     try {
                         ctx.drawImage(video, x, y, width, height);
                     } catch (error) {
                         console.error('Error drawing video:', error);
                     }
                 } else {
-                    // 🚀 **Draw image only if the user has video OFF**
-                    ctx.fillStyle = "#333";
+                    // ✅ Draw avatar background
+                    ctx.fillStyle = "#1a1a1a";
                     ctx.fillRect(x, y, width, height);
 
-                    ctx.fillStyle = "#fff";
-                    ctx.font = "20px Arial";
-                    ctx.textAlign = "center";
-                    ctx.fillText(streamData.sender, x + width / 2, y + height / 2);
+                    // ✅ Draw avatar (picture or initials)
+                    drawAvatar(ctx, x, y, width, height, streamData.sender, streamData.sender);
                 }
 
                 if (selectedVideo === index) {
@@ -352,6 +350,82 @@ const VideoGrid = ({ localStream, remoteStreams = [], screenStream, backgroundCo
         setAction(null);
         setSelectedVideo(null);
     };
+
+    ///----Avatar Code---starts
+
+    const getImage = (email, pictureUrl) => {
+        if (!pictureUrl) return null;
+
+        if (imageCache.current[email]?.url === pictureUrl) {
+            return imageCache.current[email].loaded ? imageCache.current[email].img : null;
+        }
+
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        imageCache.current[email] = { img, url: pictureUrl, loaded: false };
+        img.onload = () => {
+            imageCache.current[email].loaded = true;
+        };
+        img.onerror = () => {
+            imageCache.current[email].loaded = false;
+        };
+        img.src = pictureUrl;
+        return null; // not loaded yet on first call
+    };
+
+    const getInitials = (name) => {
+        if (!name) return "?";
+        const parts = name.trim().split(" ");
+        if (parts.length === 1) return parts[0][0]?.toUpperCase() || "?";
+        return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    };
+
+    const drawAvatar = (ctx, x, y, width, height, email, displayName) => {
+        const centerX = x + width / 2;
+        const centerY = y + height / 2;
+        const radius = Math.min(width, height) / 4;
+
+        const profile = userProfiles[email];
+        const pictureUrl = profile?.picture;
+        const name = profile?.displayName || displayName || email;
+
+        const img = pictureUrl ? getImage(email, pictureUrl) : null;
+
+        if (img) {
+            // Draw circular clipped image
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+            ctx.closePath();
+            ctx.clip();
+            ctx.drawImage(img, centerX - radius, centerY - radius, radius * 2, radius * 2);
+            ctx.restore();
+        } else {
+            // Fallback - colored circle with initials
+            const colors = ['#F87171', '#FBBF24', '#34D399', '#60A5FA', '#A78BFA', '#F472B6'];
+            const colorIndex = (email?.charCodeAt(0) || 0) % colors.length;
+
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+            ctx.fillStyle = colors[colorIndex];
+            ctx.fill();
+
+            ctx.fillStyle = "#fff";
+            ctx.font = `bold ${Math.floor(radius * 0.8)}px Arial`;
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(getInitials(name), centerX, centerY);
+        }
+
+        // Name label below avatar
+        ctx.fillStyle = "#fff";
+        ctx.font = "14px Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "alphabetic";
+        ctx.fillText(name, centerX, centerY + radius + 20);
+    };
+
+    ///----Avatar Code---ends
 
     return (
         <div style={styles.container}>
