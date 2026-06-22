@@ -2,25 +2,37 @@ import { Video, VideoOff, Mic, MicOff, Monitor, Plus } from "lucide-react";
 
 const Controls = ({ isVideo, videoToggle, isMuted, handleToggleMute, handleScreenShare, handleFileUpload }) => {
     return (
-        <div className="mt-3 flex justify-center gap-2">
+        <div className="flex items-center justify-center gap-3">
             <button
                 onClick={videoToggle}
-                className={`p-2 rounded-full ${isVideo ? 'bg-blue-500 text-white' : 'bg-red-500 text-white'}`}
+                aria-label={isVideo ? "Turn camera off" : "Turn camera on"}
+                className={`flex h-11 w-11 items-center justify-center rounded-full border transition ${isVideo
+                        ? "border-[#2A2747] bg-[#1C1838] text-[#F5F3FF] hover:bg-[#241F45]"
+                        : "border-transparent bg-[#E24B4A] text-white hover:bg-[#C73C3B]"
+                    }`}
             >
-                {isVideo ? <Video size={20} /> : <VideoOff size={20} />}
+                {isVideo ? <Video size={19} /> : <VideoOff size={19} />}
             </button>
+
             <button
                 onClick={handleToggleMute}
-                className={`p-2 rounded-full ${isMuted ? 'bg-red-500 text-white' : 'bg-blue-500 text-white'}`}
+                aria-label={isMuted ? "Unmute microphone" : "Mute microphone"}
+                className={`flex h-11 w-11 items-center justify-center rounded-full border transition ${!isMuted
+                        ? "border-[#2A2747] bg-[#1C1838] text-[#F5F3FF] hover:bg-[#241F45]"
+                        : "border-transparent bg-[#E24B4A] text-white hover:bg-[#C73C3B]"
+                    }`}
             >
-                {isMuted ? <MicOff size={20} /> : <Mic size={20} />}
+                {isMuted ? <MicOff size={19} /> : <Mic size={19} />}
             </button>
+
             <button
                 onClick={handleScreenShare}
-                className="p-2 rounded-full bg-gray-600 text-white"
+                aria-label="Share screen"
+                className="flex h-11 w-11 items-center justify-center rounded-full border border-[#2A2747] bg-[#1C1838] text-[#F5F3FF] transition hover:bg-[#241F45]"
             >
-                <Monitor size={20} />
+                <Monitor size={19} />
             </button>
+
             <input
                 type="file"
                 id="fileInput"
@@ -30,9 +42,11 @@ const Controls = ({ isVideo, videoToggle, isMuted, handleToggleMute, handleScree
             />
             <button
                 onClick={() => document.getElementById("fileInput").click()}
-                className="p-2 rounded-full bg-green-500 text-white"
+                aria-label="Attach file"
+                className="flex h-11 w-11 items-center justify-center rounded-full text-[#0E0B1F] transition hover:scale-105"
+                style={{ background: "linear-gradient(135deg, #A78BFA, #06B6D4)" }}
             >
-                <Plus size={20} />
+                <Plus size={19} />
             </button>
         </div>
     );

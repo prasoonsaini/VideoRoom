@@ -10,21 +10,30 @@ import { Video, VideoOff, Mic, MicOff, Monitor, Plus } from "lucide-react";
 import { useWebRTCAudio } from '@/hooks/webRTCAudio';
 import Controls from './Controls';
 import { motion } from "framer-motion";
+import { useRequireAuth } from '@/hooks/useRequireAuth';
+
+const BACKGROUND_OPTIONS = [
+    { color: "#14112A", label: "Slate" },
+    { color: "#7C3AED", label: "Violet" },
+    { color: "#06B6D4", label: "Cyan" },
+    { color: "#FF6B6B", label: "Coral" },
+    { color: "#0E0B1F", label: "Black" },
+];
+
 const StreamSettings = ({ setBackgroundColor }) => {
     const [showBackgroundOptions, setShowBackgroundOptions] = useState(false);
-    const backgroundColors = ["#FF5733", "#33FF57", "#3357FF", "#F0F0F0", "#000000"];
 
     return (
         <div className="relative">
-            <div className="mb-6 pb-4 flex justify-between items-center">
+            <div className="mb-4 flex items-center justify-between">
                 <div>
-                    <h3 className="text-xs font-medium">Background</h3>
-                    <p className="text-gray-400 text-xs mt-2">
-                        Customize your stream background <br />to match your style.
+                    <h3 className="text-xs font-medium text-[#F5F3FF]">Background</h3>
+                    <p className="mt-1 text-xs text-[#6E6890]">
+                        Set the canvas background color.
                     </p>
                 </div>
                 <button
-                    className="text-xs hover:bg-slate-300 self-center bg-slate-200 px-5 py-1 rounded-md"
+                    className="rounded-lg border border-[#2A2747] px-3 py-1.5 text-xs font-medium text-[#A39FC9] transition hover:bg-[#1C1838]"
                     onClick={() => setShowBackgroundOptions((prev) => !prev)}
                 >
                     Edit
@@ -32,16 +41,17 @@ const StreamSettings = ({ setBackgroundColor }) => {
             </div>
 
             {showBackgroundOptions && (
-                <div className="absolute top-0 right-0 bg-white shadow-lg p-3 rounded-lg w-48 z-10">
-                    <h4 className="text-xs font-semibold mb-2">Select Background</h4>
+                <div className="absolute right-0 top-0 z-10 w-44 rounded-xl border border-[#2A2747] bg-[#1C1838] p-3 shadow-2xl">
+                    <h4 className="mb-2 text-xs font-medium text-[#A39FC9]">Select background</h4>
                     <div className="grid grid-cols-5 gap-2">
-                        {backgroundColors.map((color) => (
-                            <div
-                                key={color}
-                                className="w-8 h-8 rounded cursor-pointer"
-                                style={{ backgroundColor: color }}
+                        {BACKGROUND_OPTIONS.map((bg) => (
+                            <button
+                                key={bg.color}
+                                aria-label={bg.label}
+                                className="h-7 w-7 rounded-md border border-[#3A3658] transition hover:scale-110"
+                                style={{ backgroundColor: bg.color }}
                                 onClick={() => {
-                                    setBackgroundColor(color);
+                                    setBackgroundColor(bg.color);
                                     setShowBackgroundOptions(false);
                                 }}
                             />
@@ -62,7 +72,7 @@ export default function RoomPage() {
     const consumerTransportRef = useRef();
     const producerRef = useRef();
     const consumersRef = useRef(new Map());
-    const pendingProducersRef = useRef([]); ////
+    const pendingProducersRef = useRef([]);
     const streamRef = useRef();
     const [isVideo, setIsVideo] = useState(false);
     const [isAudio, setIsAudio] = useState(false);
@@ -73,7 +83,6 @@ export default function RoomPage() {
     const videoProducerRef = useRef(null);
     const localStreamRef = useRef(null);
     const [isScreenSharing, setIsScreenSharing] = useState(false);
-    // let room;
     const [isMuted, setIsMuted] = useState(true)
     const audioContextRef = useRef();
     const analyserRef = useRef();
@@ -81,14 +90,10 @@ export default function RoomPage() {
     const [userInteracted, setUserInteracted] = useState(false);
     const [screenStream, setScreenStream] = useState(null)
     const [isRecording, setIsRecording] = useState(false);
-    const [backgroundColor, setBackgroundColor] = useState("#3357FF");
+    const [backgroundColor, setBackgroundColor] = useState("#14112A");
     const [isStreaming, setIsStreaming] = useState(false);
     const [userProfiles, setUserProfiles] = useState({});
-    // useEffect(() => {
-    //     const url = window.location.pathname;
-    //     const parts = url.split("/");
-    //     room = parts[parts.length - 1];
-    // }, []);
+    const { user, loading } = useRequireAuth();
 
     useEffect(() => {
         const handleFirstInteraction = () => {
@@ -117,9 +122,6 @@ export default function RoomPage() {
     }, [username]);
 
     const handleConsumerCreated = async ({ consumerId, producerId, kind, rtpParameters, sender }) => {
-        // console.log(`received a cinsumer sender is ${sender}`)
-        // console.log("Received a consumer: ", consumerId, producerId, kind, rtpParameters);
-
         try {
             if (kind !== 'video' && kind !== 'audio') {
                 console.error('Attempted to consume invalid track type');
@@ -138,13 +140,9 @@ export default function RoomPage() {
 
             if (kind === 'video') {
                 setRemoteStreams((prevStreams) => {
-                    // Remove older stream from the same sender
                     const filtered = prevStreams.filter((stream) => stream.sender !== sender);
-
-                    // Add the new stream
                     return [...filtered, { producerId, stream, sender, new: true }];
                 });
-                // setRemoteStreams((prevStreams) => [...prevStreams, { producerId, stream, sender, new: true }]);
             }
             if (kind === 'audio') {
                 const audioEl = new Audio();
@@ -169,7 +167,6 @@ export default function RoomPage() {
                 });
             }
 
-            // setConnectedPeers(consumersRef.current.size);
             await consumer.resume();
             socketRef.current.emit('resumeConsumer', { consumerId });
 
@@ -210,6 +207,7 @@ export default function RoomPage() {
             }
         }
     };
+
     const handleToggleMute = async () => {
         console.log("Mute toggle called--->")
         try {
@@ -265,10 +263,9 @@ export default function RoomPage() {
                 if (animationFrameRef.current) {
                     cancelAnimationFrame(animationFrameRef.current);
                 }
-                // setAudioLevel(0);
             }
             setIsMuted((muted) => {
-                console.log("Toggling isMuted: ", muted); // Log the current and toggled state
+                console.log("Toggling isMuted: ", muted);
                 return !muted;
             });
             console.log(isMuted)
@@ -276,7 +273,6 @@ export default function RoomPage() {
         } catch (error) {
             console.error('Error toggling mute:', error);
             setIsMuted(true);
-            // setAudioLevel(0);
             throw error;
         }
     };
@@ -284,7 +280,6 @@ export default function RoomPage() {
     const videoToggle = async () => {
         try {
             if (!isVideo) {
-                // Starting video
                 const stream = await navigator.mediaDevices.getUserMedia({ video: true });
                 localStreamRef.current = stream;
                 setLocalStream({ stream, sender: username, isVideo: true });
@@ -315,11 +310,9 @@ export default function RoomPage() {
                     videoProducerRef.current = videoProducer;
                 }
 
-                // Notify others that video is ON
                 socketRef.current.emit("toggle-video", { sender: username, isVideo: true });
 
             } else {
-                // Stopping video
                 if (videoProducerRef.current) {
                     socketRef.current.emit('producerClosed', {
                         producerId: videoProducerRef.current.id,
@@ -341,9 +334,8 @@ export default function RoomPage() {
                     videoRef.current.srcObject = null;
                 }
 
-                setLocalStream({ sender: username, isVideo: false });  // Ensure this updates properly
+                setLocalStream({ sender: username, isVideo: false });
 
-                // Notify others that video is OFF
                 socketRef.current.emit("toggle-video", { sender: username, isVideo: false });
             }
 
@@ -401,12 +393,13 @@ export default function RoomPage() {
         const file = event.target.files[0];
         if (file) {
             console.log("File selected:", file);
-            // You can process the file (e.g., upload to a server)
         }
     };
+
     useEffect(() => {
         console.log("Remote streams:::::", remoteStreams)
     }, [remoteStreams])
+
     const handleRemoteToggle = (sender, isVideo) => {
         setRemoteStreams((prevStreams) =>
             prevStreams.map((stream) => {
@@ -415,7 +408,6 @@ export default function RoomPage() {
             )
         );
 
-        // Handle local user case
         if (sender === username) {
             setLocalStream((prev) => ({ ...prev, isVideo }));
         }
@@ -504,10 +496,6 @@ export default function RoomPage() {
         });
 
         socketRef.current.on('consumerCreated', handleConsumerCreated);
-        // socketRef.current.on('producerClosed', handleProducerClosed);
-        // socketRef.current.on('peers', (peers) => {
-        //     setConnectedPeers(peers.length);
-        // });
         socketRef.current.on("toggle-video", async ({ sender, isVideo }) => {
             console.log("Received video toggle: ", sender, isVideo)
             handleRemoteToggle(sender, isVideo)
@@ -519,7 +507,6 @@ export default function RoomPage() {
                 [email]: { picture, displayName }
             }));
 
-            // ✅ Ensure a placeholder tile exists even with no stream yet
             setRemoteStreams(prev => {
                 const exists = prev.some(s => s.sender === email);
                 if (exists) return prev;
@@ -527,7 +514,6 @@ export default function RoomPage() {
             });
         });
 
-        // Add this inside setupSocketListeners()
         socketRef.current.on('userLeft', ({ sender }) => {
             console.log("User left:", sender);
             setRemoteStreams(prev =>
@@ -547,7 +533,6 @@ export default function RoomPage() {
             }
             consumersRef.current.delete(producerId);
 
-            // Remove from remote streams if it was a video stream
             setRemoteStreams(prev => prev.filter(stream => stream.producerId !== producerId));
         }
     };
@@ -608,153 +593,152 @@ export default function RoomPage() {
     };
 
     useEffect(() => {
+        if (!user) return;
         connectToServer();
         return () => {
-            // Cleanup function
-            if (socketRef.current) {
-                socketRef.current.disconnect();
-            }
-
-            // Clean up all media streams
+            if (socketRef.current) socketRef.current.disconnect();
             if (localStreamRef.current) {
                 localStreamRef.current.getTracks().forEach(track => track.stop());
             }
-
-            // Clean up producers
-            if (videoProducerRef.current) {
-                videoProducerRef.current.close();
-            }
-
-            // Clean up audio elements
+            if (videoProducerRef.current) videoProducerRef.current.close();
             consumersRef.current.forEach(({ audioElement }) => {
-                if (audioElement) {
-                    audioElement.remove();
-                }
+                if (audioElement) audioElement.remove();
             });
         };
-    }, []);
+    }, [user]);
 
-    // useEffect(() => {
-    //     document.body.style.overflow = "hidden";
-    //     return () => {
-    //         document.body.style.overflow = "auto";
-    //     };
-    // }, []);
+    if (loading) {
+        return (
+            <div className="flex h-screen w-screen items-center justify-center bg-[#0E0B1F]">
+                <div className="flex flex-col items-center gap-3">
+                    <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#2A2747] border-t-[#7C3AED]" />
+                    <span className="text-sm text-[#6E6890]">Checking authentication…</span>
+                </div>
+            </div>
+        );
+    }
+
     return (
-        <div className="flex justify-center items-center h-screen w-screen bg-[#121212]">
+        <div className="flex h-screen w-screen flex-col bg-[#0E0B1F] lg:flex-row">
+            {/* Main Video Section */}
             <motion.div
-                className="flex w-full h-full p-6 gap-6"
-                initial={{ opacity: 0, y: 20 }}
+                className="flex flex-1 flex-col gap-3 p-3 md:p-5 lg:gap-4"
+                initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, ease: "easeOut" }}
+                transition={{ duration: 0.5, ease: "easeOut" }}
             >
-                {/* Main Video Section */}
-                <div className="w-8/12 flex flex-col gap-0">
-                    {/* Video Stream */}
-                    <motion.div
-                        className="w-full aspect-[16/9] bg-[#1E1E1E] flex items-center justify-center relative rounded-xl shadow-lg"
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ duration: 0.5, ease: "easeOut" }}
-                    >
-                        <CombinedVideoStream
-                            localStream={localStream}
-                            remoteStreams={remoteStreams}
-                            socketRef={socketRef}
-                            screenStream={screenStream}
-                            backgroundColor={backgroundColor}
-                            isRecording={isRecording}
-                            isStreaming={isStreaming}
-                            audioContextRef={audioContextRef}
-                            userProfiles={userProfiles}
-                        />
-                    </motion.div>
-
-                    {/* Controls Section */}
-                    <motion.div
-                        className="p-2 rounded-lg bg-[#242424] shadow-md flex justify-center"
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.5, ease: "easeOut", delay: 0.3 }}
-                    >
-                        <Controls
-                            isVideo={isVideo}
-                            videoToggle={videoToggle}
-                            isMuted={isMuted}
-                            handleToggleMute={handleToggleMute}
-                            handleScreenShare={handleScreenShare}
-                            handleFileUpload={handleFileUpload}
-                        />
-                    </motion.div>
+                {/* Room info bar */}
+                <div className="flex items-center justify-between px-1">
+                    <div className="flex items-center gap-2">
+                        <span className="h-2 w-2 rounded-full bg-[#34D399]" />
+                        <span className="text-sm font-medium text-[#F5F3FF]">{roomId}</span>
+                    </div>
+                    <span className="text-xs text-[#6E6890]">
+                        {remoteStreams.length + 1} {remoteStreams.length === 0 ? "person" : "people"}
+                    </span>
                 </div>
 
-                {/* Sidebar - Stream Settings & Actions */}
+                {/* Video Stream */}
                 <motion.div
-                    className="w-4/12 flex flex-col gap-6"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.6, ease: "easeOut", delay: 0.3 }}
+                    className="relative flex w-full flex-1 items-center justify-center overflow-hidden rounded-2xl border border-[#2A2747] bg-[#14112A]"
+                    initial={{ opacity: 0, scale: 0.97 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.4, ease: "easeOut" }}
                 >
-                    {/* Stream Settings */}
-                    <motion.div
-                        className="bg-[#242424] text-white p-5 rounded-lg shadow-md"
-                        whileHover={{ scale: 1.02 }}
-                    >
-                        <h2 className="text-lg font-semibold mb-4">Stream Settings</h2>
-                        <StreamSettings setBackgroundColor={setBackgroundColor} />
+                    <CombinedVideoStream
+                        localStream={localStream}
+                        remoteStreams={remoteStreams}
+                        socketRef={socketRef}
+                        screenStream={screenStream}
+                        backgroundColor={backgroundColor}
+                        isRecording={isRecording}
+                        isStreaming={isStreaming}
+                        audioContextRef={audioContextRef}
+                        userProfiles={userProfiles}
+                    />
 
-                        {/* Layout Settings */}
-                        <div className="mt-4 border-t border-gray-600 pt-4">
-                            <h3 className="text-sm font-medium">Stream Layout</h3>
-                            <p className="text-gray-400 text-xs mt-1">
-                                Adjust the layout of your stream to best suit your content.
-                            </p>
-                            <motion.button
-                                className="mt-3 bg-[#333] hover:bg-[#444] text-sm px-4 py-2 rounded-md transition-all"
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                            >
-                                Edit Layout
-                            </motion.button>
+                    {isRecording && (
+                        <div className="absolute left-4 top-4 flex items-center gap-1.5 rounded-full bg-black/50 px-3 py-1.5 backdrop-blur-sm">
+                            <span className="h-2 w-2 animate-pulse rounded-full bg-[#E24B4A]" />
+                            <span className="text-xs font-medium text-white">Recording</span>
                         </div>
-                    </motion.div>
-
-                    {/* Stream Actions */}
-                    <motion.div
-                        className="bg-[#242424] text-white p-5 rounded-lg shadow-md"
-                        whileHover={{ scale: 1.02 }}
-                    >
-                        <h2 className="text-lg font-semibold mb-4">Stream Actions</h2>
-
-                        <div className="flex gap-3">
-                            {/* Start/Stop Streaming */}
-                            <motion.button
-                                className={`flex-1 px-4 py-2 text-sm font-semibold rounded-lg transition-all ${isStreaming
-                                    ? 'bg-green-500 hover:bg-green-600 text-white'
-                                    : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
-                                    }`}
-                                onClick={() => setIsStreaming(!isStreaming)}
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                            >
-                                {isStreaming ? 'Stop Streaming' : 'Start Streaming'}
-                            </motion.button>
-
-                            {/* Start/Stop Recording */}
-                            <motion.button
-                                className={`flex-1 px-4 py-2 text-sm font-semibold rounded-lg transition-all ${isRecording
-                                    ? 'bg-red-500 hover:bg-red-600 text-white'
-                                    : 'bg-blue-500 hover:bg-blue-600 text-white'
-                                    }`}
-                                onClick={() => setIsRecording(!isRecording)}
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                            >
-                                {isRecording ? 'Stop Recording' : 'Start Recording'}
-                            </motion.button>
+                    )}
+                    {isStreaming && (
+                        <div className="absolute right-4 top-4 flex items-center gap-1.5 rounded-full bg-black/50 px-3 py-1.5 backdrop-blur-sm">
+                            <span className="h-2 w-2 animate-pulse rounded-full bg-[#34D399]" />
+                            <span className="text-xs font-medium text-white">Live</span>
                         </div>
-                    </motion.div>
+                    )}
                 </motion.div>
+
+                {/* Controls Bar */}
+                <motion.div
+                    className="flex justify-center rounded-2xl border border-[#2A2747] bg-[#14112A] p-3"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, ease: "easeOut", delay: 0.15 }}
+                >
+                    <Controls
+                        isVideo={isVideo}
+                        videoToggle={videoToggle}
+                        isMuted={isMuted}
+                        handleToggleMute={handleToggleMute}
+                        handleScreenShare={handleScreenShare}
+                        handleFileUpload={handleFileUpload}
+                    />
+                </motion.div>
+            </motion.div>
+
+            {/* Sidebar - Stream Settings & Actions */}
+            <motion.div
+                className="flex w-full flex-col gap-3 border-t border-[#2A2747] p-3 md:p-5 lg:w-[340px] lg:border-l lg:border-t-0"
+                initial={{ opacity: 0, x: 16 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.5, ease: "easeOut", delay: 0.2 }}
+            >
+                {/* Stream Settings */}
+                <div className="rounded-2xl border border-[#2A2747] bg-[#14112A] p-5">
+                    <h2 className="mb-4 text-sm font-semibold text-[#F5F3FF]">Stream settings</h2>
+                    <StreamSettings setBackgroundColor={setBackgroundColor} />
+
+                    <div className="mt-4 border-t border-[#2A2747] pt-4">
+                        <h3 className="text-xs font-medium text-[#A39FC9]">Stream layout</h3>
+                        <p className="mt-1 text-xs text-[#6E6890]">
+                            Adjust how tiles are arranged on the canvas.
+                        </p>
+                        <button className="mt-3 rounded-lg border border-[#2A2747] px-4 py-2 text-xs font-medium text-[#F5F3FF] transition hover:bg-[#1C1838]">
+                            Edit layout
+                        </button>
+                    </div>
+                </div>
+
+                {/* Stream Actions */}
+                <div className="rounded-2xl border border-[#2A2747] bg-[#14112A] p-5">
+                    <h2 className="mb-4 text-sm font-semibold text-[#F5F3FF]">Stream actions</h2>
+
+                    <div className="flex gap-3">
+                        <button
+                            className={`flex-1 rounded-lg px-4 py-2.5 text-xs font-semibold transition ${isStreaming
+                                ? "bg-[#34D399]/15 text-[#6EE7B7] hover:bg-[#34D399]/25"
+                                : "border border-[#2A2747] text-[#A39FC9] hover:bg-[#1C1838]"
+                                }`}
+                            onClick={() => setIsStreaming(!isStreaming)}
+                        >
+                            {isStreaming ? "Stop streaming" : "Start streaming"}
+                        </button>
+
+                        <button
+                            className={`flex-1 rounded-lg px-4 py-2.5 text-xs font-semibold transition ${isRecording
+                                ? "bg-[#E24B4A]/15 text-[#F09595] hover:bg-[#E24B4A]/25"
+                                : "text-[#0E0B1F] hover:scale-[1.02]"
+                                }`}
+                            style={!isRecording ? { background: "linear-gradient(135deg, #A78BFA, #06B6D4)" } : {}}
+                            onClick={() => setIsRecording(!isRecording)}
+                        >
+                            {isRecording ? "Stop recording" : "Start recording"}
+                        </button>
+                    </div>
+                </div>
             </motion.div>
         </div>
     );

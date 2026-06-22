@@ -1,16 +1,28 @@
 import Header from "@/app/components/Header";
 import "./globals.css";
-import { Poppins } from "next/font/google"
+import { Poppins, Space_Grotesk, Inter } from "next/font/google";
 
 const poppins = Poppins({
   subsets: ["latin"],
-  weight: ["400", "600", "700"], // Choose font weights you need
-  variable: "--font-poppins", // Set a CSS variable
+  weight: ["400", "600", "700"],
+  variable: "--font-poppins",
+});
+
+const spaceGrotesk = Space_Grotesk({
+  subsets: ["latin"],
+  weight: ["500", "700"],
+  variable: "--font-display",
+});
+
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-body",
 });
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className={poppins.variable}>
+    <html lang="en" className={`${poppins.variable} ${spaceGrotesk.variable} ${inter.variable}`}>
       <body className="font-poppins">
         <div className="flex flex-col min-h-screen">
           {/* Header */}

@@ -1,5 +1,4 @@
 "use client";
-import { getAuthStatus, getLoginUrl } from "@/utils/googleAuth";
 import { useRouter } from "next/navigation";
 import AuthButtons from "./authButton";
 
@@ -7,33 +6,34 @@ export default function Header() {
     const router = useRouter();
 
     return (
-        <header className="flex items-center justify-between px-6 py-3 bg-white ">
+        <header className="sticky top-0 z-50 flex items-center justify-between border-b border-[#2A2747] bg-[#0E0B1F]/90 px-6 py-3 backdrop-blur-md md:px-12">
             {/* Left Section - Logo */}
-            <div className="text-xl font-semibold text-blue-600 cursor-pointer" onClick={() => router.push("/")}>
-                🎥 stream-yt
+            <div
+                className="flex cursor-pointer items-center gap-2"
+                onClick={() => router.push("/")}
+            >
+                <div
+                    className="h-3 w-3 rounded-full"
+                    style={{ background: "linear-gradient(135deg, #7C3AED, #06B6D4)" }}
+                />
+                <span
+                    className="text-lg font-semibold tracking-tight text-[#F5F3FF]"
+                    style={{ fontFamily: "var(--font-display)" }}
+                >
+                    videoroom
+                </span>
             </div>
 
             {/* Right Section - Navigation */}
-            <div className="flex items-center space-x-6">
-                {/* Recordings Link */}
+            <div className="flex items-center gap-5">
                 <button
-                    className="text-gray-600 hover:text-blue-500 transition"
+                    className="text-sm text-[#A39FC9] transition hover:text-[#F5F3FF]"
                     onClick={() => router.push("/recordings")}
                 >
                     Recordings
                 </button>
 
-                {/* Login Button */}
-
                 <AuthButtons />
-
-                {/* Signup Button */}
-                {/* <button
-                    className="px-4 py-1 text-sm text-white bg-blue-500 rounded-md hover:bg-blue-600 transition"
-                    onClick={() => router.push("/signup")}
-                >
-                    Sign Up
-                </button> */}
             </div>
         </header>
     );
