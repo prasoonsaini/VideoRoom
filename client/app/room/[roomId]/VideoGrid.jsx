@@ -122,7 +122,7 @@ const VideoGrid = ({ localStream, remoteStreams = [], screenStream, backgroundCo
         });
 
         // 🌐 WebSocket for streaming data
-        const socket = new WebSocket("ws://localhost:8080");
+        const socket = new WebSocket(process.env.NEXT_PUBLIC_STREAMING_URL || "ws://localhost:8080");
         streamSocketRef.current = socket;
 
         socket.onopen = () => {

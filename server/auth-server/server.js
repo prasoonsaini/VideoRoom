@@ -18,9 +18,10 @@ app.use(
         resave: false,
         saveUninitialized: false,
         cookie: {
-            secure: process.env.NODE_ENV === 'production',  // `true` for production, `false` for development
+            secure: false,
             httpOnly: true, // Ensures cookie is not accessible via JavaScript (helps prevent XSS attacks)
-            maxAge: 24 * 60 * 60 * 1000 // 1 day
+            maxAge: 24 * 60 * 60 * 1000, // 1 day
+           sameSite :  'lax'
         }
     })
 );
@@ -29,7 +30,10 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 app.use(bodyParser.json());
-app.use(cors({ origin: 'http://localhost:3000', credentials: true }));
+app.use(cors({ 
+    origin: 'https://videoroom.duckdns.org',
+    credentials: true 
+}));
 
 app.use('/auth', authRoutes);
 

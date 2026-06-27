@@ -21,7 +21,7 @@ function authenticateSession(req, res, next) {
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 router.get('/google/callback', passport.authenticate('google', {
     failureRedirect: '/auth/failure',
-    successRedirect: 'http://localhost:3000',
+    successRedirect: 'https://videoroom.duckdns.org',
 }));
 router.get('/logout', async (req, res) => {
     const email = req.user._json.email

@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = 'http://localhost:9090';
+const API_URL = process.env.NEXT_PUBLIC_AUTH_URL || 'http://localhost:9090';
 
 export const getLoginUrl = () => {
     return `${API_URL}/auth/google`;

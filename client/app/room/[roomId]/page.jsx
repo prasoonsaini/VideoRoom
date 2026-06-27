@@ -415,7 +415,7 @@ export default function RoomPage() {
 
 
     async function connectToServer() {
-        socketRef.current = io('http://localhost:4000', {
+        socketRef.current = io(process.env.NEXT_PUBLIC_SIGNALING_URL || 'http://localhost:4000', {
             transports: ['websocket'],
             reconnection: true,
             reconnectionAttempts: 5,

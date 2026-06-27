@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { getAuthStatus, getLoginUrl } from '@/utils/googleAuth';
 import CreateRoom from "@/app/components/CreateRoom";
 import ScheduleMeeting from "./components/ScheduleMeeting";
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { motion } from "framer-motion";
 
 const FACE_TILES = [
@@ -16,7 +16,7 @@ const FACE_TILES = [
   { top: "85%", left: "48%", size: 44, delay: 0.9, color: "#FF6B6B" },
 ];
 
-export default function Home() {
+function HomeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const isCreateRoomOpen = searchParams.get("modal") === "create-room";
@@ -210,5 +210,16 @@ export default function Home() {
       {isCreateRoomOpen && <CreateRoom />}
       {isScheduleMeetOpen && <ScheduleMeeting />}
     </div>
+  );
+}
+export default function Home() {
+  return (
+    <Suspense fallback={
+      <div className="flex h-screen w-screen items-center justify-center bg-[#0E0B1F]">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#2A2747] border-t-[#7C3AED]" />
+      </div>
+    }>
+      <HomeContent />
+    </Suspense>
   );
 }

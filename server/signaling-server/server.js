@@ -1,10 +1,16 @@
 // server.js
+import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+dotenv.config({ path: join(__dirname, '.env') });
 import { Server } from "socket.io";
 import mediasoupServer from './mediasoup-server.js';
-
 const io = new Server(4000, {
     cors: {
-        origin: "http://localhost:3000",
+        origin: 'https://videoroom.duckdns.org',
         methods: ["GET", "POST"],
         credentials: true,
     },
